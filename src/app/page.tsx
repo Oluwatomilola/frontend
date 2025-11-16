@@ -3,12 +3,15 @@
 import Link from "next/link";
 import WalletConnect from "@/components/WalletConnect";
 import { useState } from "react";
+import { motion } from "framer-motion";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function Home() {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-blue-950 dark:to-indigo-950">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-blue-950 dark:to-indigo-950">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-950/80 border-b border-slate-200/50 dark:border-slate-800/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -22,21 +25,56 @@ export default function Home() {
               </span>
             </div>
             <div className="hidden md:flex items-center space-x-8">
-              <a href="#features" className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+              <a href="#features" className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-3 py-3 rounded-md">
                 Features
               </a>
-              <a href="#how-it-works" className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+              <a href="#how-it-works" className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-3 py-3 rounded-md">
                 How It Works
               </a>
-              <Link href="/profile" className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+              <Link href="/profile" className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-3 py-3 rounded-md">
                 Profile
               </Link>
+              <ThemeToggle />
               <WalletConnect />
             </div>
-            <div className="md:hidden">
+            <div className="md:hidden flex items-center gap-2">
+              <ThemeToggle />
               <WalletConnect />
+              <button
+                aria-label="Open menu"
+                aria-expanded={mobileOpen}
+                onClick={() => setMobileOpen((v) => !v)}
+                className="inline-flex items-center justify-center w-11 h-11 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 active:scale-95 transition"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                  {mobileOpen ? (
+                    <path d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <>
+                      <line x1="3" y1="6" x2="21" y2="6" />
+                      <line x1="3" y1="12" x2="21" y2="12" />
+                      <line x1="3" y1="18" x2="21" y2="18" />
+                    </>
+                  )}
+                </svg>
+              </button>
             </div>
           </div>
+          {mobileOpen && (
+            <div className="md:hidden py-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex flex-col gap-2 py-2">
+                <a href="#features" className="px-4 py-3 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                  Features
+                </a>
+                <a href="#how-it-works" className="px-4 py-3 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                  How It Works
+                </a>
+                <Link href="/profile" className="px-4 py-3 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                  Profile
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
@@ -48,7 +86,12 @@ export default function Home() {
         </div>
         
         <div className="max-w-7xl mx-auto relative z-10">
-          <div className="text-center max-w-4xl mx-auto">
+          <motion.div
+            className="text-center max-w-4xl mx-auto"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+          >
             <div className="inline-flex items-center px-4 py-2 rounded-full bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 mb-8">
               <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
                 ✨ Decentralized • Onchain • Censorship-Resistant
@@ -67,7 +110,12 @@ export default function Home() {
               ensuring immutability, transparency, and true ownership.
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <motion.div
+              className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.3 }}
+            >
               <button
                 onClick={() => setShowComingSoon(true)}
                 className="group px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full font-semibold text-lg hover:shadow-2xl hover:scale-105 transition-all duration-200 flex items-center gap-2"
@@ -83,11 +131,17 @@ export default function Home() {
               >
                 Learn More
               </a>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
           {/* Hero Visual */}
-          <div className="mt-20 relative">
+          <motion.div
+            className="mt-20 relative"
+            initial={{ opacity: 0, scale: 0.98 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.35 }}
+          >
             <div className="max-w-5xl mx-auto bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-8 sm:p-12">
               <div className="space-y-4">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-200 dark:border-slate-700">
@@ -102,22 +156,22 @@ export default function Home() {
                 <div className="space-y-3">
                   <div className="flex gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-500"></div>
-                    <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-2xl rounded-tl-none p-4">
+                    <motion.div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-2xl rounded-tl-none p-4" initial={{ opacity: 0, x: -10 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                       <p className="text-slate-900 dark:text-slate-100">Welcome to the future of messaging! 🚀</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Onchain • Immutable</p>
-                    </div>
+                    </motion.div>
                   </div>
                   <div className="flex gap-3 justify-end">
-                    <div className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl rounded-tr-none p-4 text-white max-w-md ml-auto">
+                    <motion.div className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl rounded-tr-none p-4 text-white max-w-md ml-auto" initial={{ opacity: 0, x: 10 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                       <p>This is incredible! Every message is stored on the blockchain. True decentralization! 💎</p>
                       <p className="text-xs text-blue-100 mt-1">Onchain • Immutable</p>
-                    </div>
+                    </motion.div>
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-cyan-500"></div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
