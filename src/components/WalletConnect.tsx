@@ -5,7 +5,7 @@ import { useDisconnect } from "@reown/appkit/react";
 import { useWalletInfo } from "@reown/appkit/react";
 import { useAccount, useDisconnect as useWagmiDisconnect } from "wagmi";
 import { Wallet, ChevronDown, LogOut, Copy, Check } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { usePlausible } from "next-plausible";
 import { AnimatePresence, motion } from "framer-motion";
@@ -17,6 +17,12 @@ export default function WalletConnect() {
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const copyRef = useRef<HTMLButtonElement | null>(null);
+  const explorerRef = useRef<HTMLAnchorElement | null>(null);
+  const disconnectRef = useRef<HTMLButtonElement | null>(null);
 
   const plausible = usePlausible();
 
@@ -155,11 +161,67 @@ export default function WalletConnect() {
     const handleClickOutside = (event: MouseEvent) => {
       if (!(event.target as Element).closest("[data-wallet-dropdown]")) {
         setIsDropdownOpen(false);
+        // Return focus to trigger if it exists
+        triggerRef.current?.focus();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Focus first item when menu opens
+  useEffect(() => {
+    if (isDropdownOpen) {
+      setActiveIndex(0);
+      // Focus after paint
+      setTimeout(() => {
+        copyRef.current?.focus();
+      }, 0);
+    }
+  }, [isDropdownOpen]);
+
+  const menuItems = [copyRef, explorerRef, disconnectRef] as const;
+
+  const focusItem = (index: number) => {
+    const clamped = Math.max(0, Math.min(menuItems.length - 1, index));
+    setActiveIndex(clamped);
+    menuItems[clamped].current?.focus();
+  };
+
+  const onTriggerKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      setIsDropdownOpen(true);
+    }
+  };
+
+  const onMenuKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        focusItem(activeIndex + 1);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        focusItem(activeIndex - 1);
+        break;
+      case "Home":
+        e.preventDefault();
+        focusItem(0);
+        break;
+      case "End":
+        e.preventDefault();
+        focusItem(menuItems.length - 1);
+        break;
+      case "Escape":
+        e.preventDefault();
+        setIsDropdownOpen(false);
+        triggerRef.current?.focus();
+        break;
+      default:
+        break;
+    }
+  };
 
   if (!mounted) {
     return (
@@ -191,7 +253,9 @@ export default function WalletConnect() {
         aria-haspopup="menu"
         aria-expanded={isDropdownOpen}
         aria-controls="wallet-menu"
-        className="flex items-center gap-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-full px-4 py-2 hover:shadow-lg transition-all duration-200 border border-slate-200 dark:border-slate-700"
+        ref={triggerRef}
+        onKeyDown={onTriggerKeyDown}
+        className="flex items-center gap-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-full px-4 py-2 hover:shadow-lg transition-all duration-200 border border-slate-200 dark:border-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
         <span className="font-medium text-sm">{truncateAddress(address)}</span>
         <div className="flex items-center">{getWalletIcon()}</div>
@@ -203,6 +267,7 @@ export default function WalletConnect() {
           <motion.div
             id="wallet-menu"
             role="menu"
+            onKeyDown={onMenuKeyDown}
             initial={{ opacity: 0, y: -8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
@@ -227,7 +292,9 @@ export default function WalletConnect() {
                 onClick={handleCopyAddress}
                 role="menuitem"
                 aria-label="Copy wallet address"
-                className="w-full flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors"
+                ref={copyRef}
+                tabIndex={activeIndex === 0 ? 0 : -1}
+                className="w-full flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 {copied ? (
                   <>
@@ -247,7 +314,9 @@ export default function WalletConnect() {
                 rel="noopener noreferrer"
                 role="menuitem"
                 aria-label="View address on BaseScan"
-                className="flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors"
+                ref={explorerRef}
+                tabIndex={activeIndex === 1 ? 0 : -1}
+                className="flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -258,7 +327,9 @@ export default function WalletConnect() {
                 onClick={handleDisconnect}
                 role="menuitem"
                 aria-label="Disconnect wallet"
-                className="w-full flex items-center gap-3 px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm transition-colors mt-1"
+                ref={disconnectRef}
+                tabIndex={activeIndex === 2 ? 0 : -1}
+                className="w-full flex items-center gap-3 px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm transition-colors mt-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
               >
                 <LogOut className="w-4 h-4" />
                 Disconnect
