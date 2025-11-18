@@ -5,26 +5,15 @@ import { useDisconnect } from "@reown/appkit/react";
 import { useWalletInfo } from "@reown/appkit/react";
 import { useAccount, useDisconnect as useWagmiDisconnect } from "wagmi";
 import { Wallet, ChevronDown, LogOut, Copy, Check } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
-import { usePlausible } from "next-plausible";
-import { AnimatePresence, motion } from "framer-motion";
 
 export default function WalletConnect() {
   const [mounted, setMounted] = useState(false);
-  const isE2EMode = process.env.NEXT_PUBLIC_E2E === "1";
-  const [e2eConnected, setE2eConnected] = useState(false);
-
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const copyRef = useRef<HTMLButtonElement | null>(null);
-  const explorerRef = useRef<HTMLAnchorElement | null>(null);
-  const disconnectRef = useRef<HTMLButtonElement | null>(null);
-
-  const plausible = usePlausible();
+  const [isConnecting, setIsConnecting] = useState(false); // 🟢 NEW: Loading state
+  const [isDisconnecting, setIsDisconnecting] = useState(false); // optional future UX polish
 
   // AppKit hooks
   const { address: appkitAddress, isConnected: appkitIsConnected } = useAppKitAccount();
@@ -36,21 +25,10 @@ export default function WalletConnect() {
   const { address: wagmiAddress, isConnected: wagmiIsConnected, connector } = useAccount();
   const { disconnect: wagmiDisconnect } = useWagmiDisconnect();
 
+  const address = appkitAddress || wagmiAddress;
+  const isConnected = appkitIsConnected || wagmiIsConnected;
+
   useEffect(() => setMounted(true), []);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && isE2EMode) {
-      const params = new URLSearchParams(window.location.search);
-      const preset = params.get("e2eConnected");
-      if (preset === "true") setE2eConnected(true);
-      if (preset === "false") setE2eConnected(false);
-    }
-  }, [isE2EMode]);
-
-  const baseAddress = appkitAddress || wagmiAddress;
-  const baseIsConnected = appkitIsConnected || wagmiIsConnected;
-  const address = isE2EMode && e2eConnected ? "0x1234567890abcdef1234567890abcdefabcd" : baseAddress;
-  const isConnected = isE2EMode ? e2eConnected : baseIsConnected;
 
   const truncateAddress = (addr: string | undefined) =>
     addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "";
@@ -112,39 +90,33 @@ export default function WalletConnect() {
 
   const getWalletName = () => walletInfo?.name || connector?.name || "Connected Wallet";
 
+  // 🟢 UPDATED: show spinner & disable button during connect
   const handleConnect = async () => {
     try {
-      if (isE2EMode) {
-        setE2eConnected(true);
-        return;
-      }
+      setIsConnecting(true);
       await open();
-      if (!isE2EMode) {
-        plausible("wallet_connect");
-      }
     } catch (error: unknown) {
       console.error("Connection error:", error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsConnecting(false);
     }
   };
 
+  // Optional disconnect loading
   const handleDisconnect = async () => {
     setIsDropdownOpen(false);
+    setIsDisconnecting(true);
     try {
-      if (isE2EMode) {
-        setE2eConnected(false);
-        return;
-      }
       if (appkitIsConnected) {
-        appkitDisconnect();
+        await appkitDisconnect();
       }
       if (wagmiIsConnected) {
-        wagmiDisconnect();
-      }
-      if (!isE2EMode) {
-        plausible("wallet_disconnect");
+        await wagmiDisconnect();
       }
     } catch (error: unknown) {
       console.error("Disconnect error:", error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsDisconnecting(false);
     }
   };
 
@@ -161,67 +133,11 @@ export default function WalletConnect() {
     const handleClickOutside = (event: MouseEvent) => {
       if (!(event.target as Element).closest("[data-wallet-dropdown]")) {
         setIsDropdownOpen(false);
-        // Return focus to trigger if it exists
-        triggerRef.current?.focus();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  // Focus first item when menu opens
-  useEffect(() => {
-    if (isDropdownOpen) {
-      setActiveIndex(0);
-      // Focus after paint
-      setTimeout(() => {
-        copyRef.current?.focus();
-      }, 0);
-    }
-  }, [isDropdownOpen]);
-
-  const menuItems = [copyRef, explorerRef, disconnectRef] as const;
-
-  const focusItem = (index: number) => {
-    const clamped = Math.max(0, Math.min(menuItems.length - 1, index));
-    setActiveIndex(clamped);
-    menuItems[clamped].current?.focus();
-  };
-
-  const onTriggerKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      setIsDropdownOpen(true);
-    }
-  };
-
-  const onMenuKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        focusItem(activeIndex + 1);
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        focusItem(activeIndex - 1);
-        break;
-      case "Home":
-        e.preventDefault();
-        focusItem(0);
-        break;
-      case "End":
-        e.preventDefault();
-        focusItem(menuItems.length - 1);
-        break;
-      case "Escape":
-        e.preventDefault();
-        setIsDropdownOpen(false);
-        triggerRef.current?.focus();
-        break;
-      default:
-        break;
-    }
-  };
 
   if (!mounted) {
     return (
@@ -235,13 +151,44 @@ export default function WalletConnect() {
     return (
       <button
         onClick={handleConnect}
-        aria-label="Connect wallet"
-        className="px-6 py-2 flex items-center gap-2 rounded-full font-medium text-white transition-all duration-200 bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-lg hover:scale-105"
+        disabled={isConnecting}
+        className={`px-6 py-2 flex items-center gap-2 rounded-full font-medium text-white transition-all duration-200 ${
+          isConnecting
+            ? "bg-blue-400 cursor-not-allowed"
+            : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-lg hover:scale-105"
+        }`}
       >
-        <>
-          <Wallet className="w-5 h-5" />
-          Connect Wallet
-        </>
+        {isConnecting ? (
+          <>
+            {/* Spinner */}
+            <svg
+              className="animate-spin h-5 w-5 text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+              ></path>
+            </svg>
+            Connecting...
+          </>
+        ) : (
+          <>
+            <Wallet className="w-5 h-5" />
+            Connect Wallet
+          </>
+        )}
       </button>
     );
   }
@@ -250,94 +197,109 @@ export default function WalletConnect() {
     <div className="relative" data-wallet-dropdown>
       <button
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        aria-haspopup="menu"
-        aria-expanded={isDropdownOpen}
-        aria-controls="wallet-menu"
-        ref={triggerRef}
-        onKeyDown={onTriggerKeyDown}
-        className="flex items-center gap-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-full px-4 py-2 hover:shadow-lg transition-all duration-200 border border-slate-200 dark:border-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="flex items-center gap-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-full px-4 py-2 hover:shadow-lg transition-all duration-200 border border-slate-200 dark:border-slate-700"
       >
         <span className="font-medium text-sm">{truncateAddress(address)}</span>
         <div className="flex items-center">{getWalletIcon()}</div>
         <ChevronDown className="w-4 h-4" />
       </button>
 
-      <AnimatePresence>
-        {isDropdownOpen && (
-          <motion.div
-            id="wallet-menu"
-            role="menu"
-            onKeyDown={onMenuKeyDown}
-            initial={{ opacity: 0, y: -8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            transition={{ duration: 0.15 }}
-            className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl z-50 border border-slate-200 dark:border-slate-700 overflow-hidden"
-          >
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-3">
-                {getWalletIcon()}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">
-                    {getWalletName()}
-                  </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 truncate">
-                    {truncateAddress(address)}
-                  </p>
-                </div>
+      {isDropdownOpen && (
+        <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl z-50 border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-3">
+              {getWalletIcon()}
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">
+                  {getWalletName()}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  {truncateAddress(address)}
+                </p>
               </div>
             </div>
-            <div className="p-2" role="none">
-              <button
-                onClick={handleCopyAddress}
-                role="menuitem"
-                aria-label="Copy wallet address"
-                ref={copyRef}
-                tabIndex={activeIndex === 0 ? 0 : -1}
-                className="w-full flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          </div>
+          <div className="p-2">
+            <button
+              onClick={handleCopyAddress}
+              className="w-full flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copy Address
+                </>
+              )}
+            </button>
+            <a
+              href={`https://basescan.org/address/${address}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    Copy Address
-                  </>
-                )}
-              </button>
-              <a
-                href={`https://basescan.org/address/${address}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                role="menuitem"
-                aria-label="View address on BaseScan"
-                ref={explorerRef}
-                tabIndex={activeIndex === 1 ? 0 : -1}
-                className="flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                View on Explorer
-              </a>
-              <button
-                onClick={handleDisconnect}
-                role="menuitem"
-                aria-label="Disconnect wallet"
-                ref={disconnectRef}
-                tabIndex={activeIndex === 2 ? 0 : -1}
-                className="w-full flex items-center gap-3 px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm transition-colors mt-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-              >
-                <LogOut className="w-4 h-4" />
-                Disconnect
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                />
+              </svg>
+              View on Explorer
+            </a>
+            <button
+              onClick={handleDisconnect}
+              disabled={isDisconnecting}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors mt-1 ${
+                isDisconnecting
+                  ? "cursor-not-allowed opacity-70 bg-red-100 dark:bg-red-900/20 text-red-500"
+                  : "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              }`}
+            >
+              {isDisconnecting ? (
+                <>
+                  <svg
+                    className="animate-spin w-4 h-4 text-red-500"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                    ></path>
+                  </svg>
+                  Disconnecting...
+                </>
+              ) : (
+                <>
+                  <LogOut className="w-4 h-4" />
+                  Disconnect
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
