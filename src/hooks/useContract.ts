@@ -38,3 +38,26 @@ export function useContract() {
 
     return receipt.data;
   };
+
+  const createRoom = async (roomName: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const hash = await writeContractAsync({
+        address: CONTRACT_ADDRESS as Address,
+        abi: CONTRACT_ABI,
+        functionName: "createRoom",
+        args: [roomName],
+      });
+
+      return await waitForReceipt(hash);
+    } catch (err) {
+      console.error("Create room failed:", err);
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  
