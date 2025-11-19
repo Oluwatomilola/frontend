@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/Providers";
 import PlausibleProvider from "next-plausible";
 import { ErrorBoundaryWrapper } from "@/components/ErrorBoundaryWrapper";
+import { WebSocketProvider } from "@/context/WebSocketContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,13 +51,15 @@ export default function RootLayout({
 }>) {
   const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "ambience-chat.vercel.app";
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <PlausibleProvider domain={plausibleDomain} trackOutboundLinks>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="min-h-screen bg-background font-sans antialiased">
+        <PlausibleProvider domain="ambience-chat.vercel.app" trackOutboundLinks>
           <ErrorBoundaryWrapper>
-            <Providers>{children}</Providers>
+            <WebSocketProvider>
+              <Providers>
+                {children}
+              </Providers>
+            </WebSocketProvider>
           </ErrorBoundaryWrapper>
         </PlausibleProvider>
       </body>
