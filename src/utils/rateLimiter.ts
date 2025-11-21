@@ -136,7 +136,7 @@ class RateLimiter {
 
     return {
       tokens: currentTokens,
-      maxTokens: bucketConfig.maxTokens,
+      maxTokens: bucketConfig.maxRequests,
       resetTime
     };
   }
