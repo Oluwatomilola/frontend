@@ -27,7 +27,7 @@ export const roomDescriptionSchema = z.string()
 export const messageSchema = z.string()
   .min(1, 'Message cannot be empty')
   .max(1000, 'Message must be less than 1000 characters')
-  .refine((value) => {
+  .refine((value: string) => {
     // Prevent script injection and XSS
     const dangerousPatterns = [
       /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
