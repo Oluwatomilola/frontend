@@ -51,11 +51,11 @@ export const profileUpdateSchema = z.object({
   username: usernameSchema,
   bio: bioSchema,
   avatarFile: z.instanceof(File)
-    .refine((file) => {
+    .refine((file: File) => {
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
       return allowedTypes.includes(file.type);
     }, 'Avatar must be a valid image file (JPEG, PNG, GIF, or WebP)')
-    .refine((file) => file.size <= 5 * 1024 * 1024, 'Avatar file must be less than 5MB')
+    .refine((file: File) => file.size <= 5 * 1024 * 1024, 'Avatar file must be less than 5MB')
     .optional()
 });
 
@@ -65,7 +65,7 @@ export const createRoomSchema = z.object({
   description: roomDescriptionSchema.optional(),
   isPrivate: z.boolean(),
   password: passwordSchema
-}).refine((data) => {
+}).refine((data: any) => {
   if (data.isPrivate && data.password && data.password.length < 8) {
     return false;
   }
@@ -81,7 +81,7 @@ export const updateRoomSchema = z.object({
   description: roomDescriptionSchema.optional(),
   isPrivate: z.boolean(),
   password: z.string().max(100, 'Password must be less than 100 characters').optional()
-}).refine((data) => {
+}).refine((data: any) => {
   if (data.isPrivate && data.password && data.password.length > 0 && data.password.length < 8) {
     return false;
   }
