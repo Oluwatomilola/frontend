@@ -218,7 +218,7 @@ describe('Rate Limiting Tests', () => {
   describe('Rate Limited Function Wrapper', () => {
     it('should execute function when rate limit allows', async () => {
       const mockFn = vi.fn().mockResolvedValue('success');
-      const rateLimitedFn = createRateLimitedFunction(mockFn, 'TEST_ACTION');
+      const rateLimitedFn = createRateLimitedFunction(mockFn, 'PROFILE_UPDATE');
       
       const result = await rateLimitedFn();
       expect(result).toBe('success');
@@ -229,7 +229,7 @@ describe('Rate Limiting Tests', () => {
       const mockFn = vi.fn().mockImplementation(() => {
         return { error: 'Rate limit exceeded', retryAfter: 3000 };
       });
-      const rateLimitedFn = createRateLimitedFunction(mockFn, 'TEST_ACTION');
+      const rateLimitedFn = createRateLimitedFunction(mockFn, 'PROFILE_UPDATE');
       
       const result = await rateLimitedFn();
       expect(result).toHaveProperty('error');
@@ -320,7 +320,7 @@ describe('Contract Security Tests', () => {
         abi: [],
         functionName: 'testFunction',
         args: [],
-        gasLimit: 50000000n, // 50M gas
+        gasLimit: BigInt(50000000), // 50M gas
       };
       
       const result = ContractValidator.validateFunctionCall(excessiveGasCall);
@@ -334,7 +334,7 @@ describe('Contract Security Tests', () => {
         abi: [],
         functionName: 'testFunction',
         args: [],
-        gasLimit: 5000000n, // 5M gas - high but acceptable
+        gasLimit: BigInt(5000000), // 5M gas - high but acceptable
       };
       
       const result = ContractValidator.validateFunctionCall(highGasCall);
