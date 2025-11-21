@@ -1,19 +1,28 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useProfile } from "@/hooks/useProfile";
 import { Button } from "@/components/ui/button";
 import { profileUpdateSchema } from "@/lib/validation/user";
-import { createRateLimitedFunction, RATE_LIMITS, useRateLimit } from "@/utils/rateLimiter";
-import { createSafeError, ApiResponse } from "@/lib/security/errors";
+import { createRateLimitedFunction, useRateLimit } from "@/utils/rateLimiter";
+import { createSafeError } from "@/lib/security/errors";
 import { sanitizeMessage } from "@/lib/sanitize";
 
 export function ProfileForm() {
   const { profile, updateProfile, savingProfile } = useProfile();
-  const [username, setUsername] = useState(profile?.username || "");
-  const [bio, setBio] = useState(profile?.bio || "");
+  const [username, setUsername] = useState("");
+  const [bio, setBio] = useState("");
   const [avatar, setAvatar] = useState<File | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Initialize form data when profile loads
+  useEffect(() => {
+    if (profile) {
+      const profileData = Array.isArray(profile) ? profile[0] : profile;
+      setUsername(profileData?.username || "");
+      setBio(profileData?.bio || "");
+    }
+  }, [profile]);
 
   // Rate limiting for profile updates
   const rateLimit = useRateLimit('PROFILE_UPDATE');
