@@ -4,10 +4,15 @@ import { useAppKitAccount, useAppKit } from "@reown/appkit/react";
 import { useDisconnect } from "@reown/appkit/react";
 import { useWalletInfo } from "@reown/appkit/react";
 import { useAccount, useDisconnect as useWagmiDisconnect } from "wagmi";
-import { Wallet, ChevronDown, LogOut, Copy, Check } from "lucide-react";
+import { Wallet, ChevronDown, LogOut, Copy, Check, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import useNameService from "@/hooks/useNameService";
+import useAmbienceChat from "@/hooks/useAmbienceChat";
+import { useAppKit } from "@/context/appkit";
+import { useAccount as useWagmiAccount, useDisconnect as useWagmiDisconnect } from "wagmi";
+import { truncateAddress } from "@/lib/utils";
+import { toast } from "sonner";
 
 /**
  * WalletConnect component
@@ -21,12 +26,15 @@ import useNameService from "@/hooks/useNameService";
 
 export default function WalletConnect() {
   const [mounted, setMounted] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showTxStatus, setShowTxStatus] = useState(false);
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
+
   
   // Name service hook
   const { lookupAddress } = useNameService();
@@ -154,11 +162,53 @@ export default function WalletConnect() {
 
   const handleCopyAddress = async () => {
     if (address) {
-      await navigator.clipboard.writeText(address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      try {
+        await navigator.clipboard.writeText(address);
+        setCopied(true);
+        toast.success('Address copied to clipboard');
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy address:', err);
+        toast.error('Failed to copy address');
+      }
     }
   };
+
+  // Example function to create a new chat room
+  const handleCreateRoom = async () => {
+    if (!address) return;
+    
+    try {
+      const roomName = `Room ${Math.floor(Math.random() * 1000)}`;
+      const txHash = await createRoom(roomName, false);
+      
+      if (txHash) {
+        setLastTxHash(txHash);
+        toast.success(`Creating room: ${roomName}`);
+      }
+    } catch (err) {
+      console.error('Failed to create room:', err);
+      toast.error('Failed to create room');
+    }
+  };
+
+  // Handle transaction status changes
+  useEffect(() => {
+    if (isPending) {
+      setShowTxStatus(true);
+      toast.loading('Transaction pending...');
+    }
+
+    if (isConfirmed) {
+      setShowTxStatus(false);
+      toast.success('Transaction confirmed!');
+    }
+
+    if (isContractError && contractError) {
+      setShowTxStatus(false);
+      toast.error(`Transaction failed: ${contractError}`);
+    }
+  }, [isPending, isConfirmed, isContractError, contractError]);
 
   // Handle click outside
   useEffect(() => {
@@ -179,7 +229,7 @@ export default function WalletConnect() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside, true);
     };
-  }, [isDropdownOpen]); // Add isDropdownOpen to dependency array
+  }, [isDropdownOpen]);
 
   if (!mounted) {
     return (
@@ -272,23 +322,53 @@ export default function WalletConnect() {
               </div>
             </div>
           </div>
-          <div className="p-2">
-            <button
-              onClick={handleCopyAddress}
-              className="w-full flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors"
-            >
-              {copied ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  Copy Address
-                </>
-              )}
-            </button>
+          <div className="p-2 space-y-1">
+            {/* Transaction Status Indicator */}
+            {showTxStatus && (
+              <div className="mb-2 p-2 text-sm rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>{isPending ? 'Transaction pending...' : 'Processing...'}</span>
+              </div>
+            )}
+
+            {/* Contract Actions */}
+            <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 px-2 mb-1">Contract Actions</p>
+              <button
+                onClick={handleCreateRoom}
+                disabled={isPending}
+                className="w-full flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating Room...
+                  </>
+                ) : (
+                  'Create Chat Room'
+                )}
+              </button>
+            </div>
+
+            {/* Account Actions */}
+            <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 px-2 mb-1">Account</p>
+              <button
+                onClick={handleCopyAddress}
+                className="w-full flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    Copy Address
+                  </>
+                )}
+              </button>
             <a
               href={`https://basescan.org/address/${address}`}
               target="_blank"
