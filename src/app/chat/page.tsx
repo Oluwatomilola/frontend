@@ -1,10 +1,142 @@
 "use client";
 
-import { useAppKitAccount } from "@reown/appkit/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, User, Loader2, AlertCircle } from "lucide-react";
+import { useAccount, useEnsName, mainnet } from "wagmi";
+import { Send, User, Loader2, AlertCircle, Clock, ChevronDown, ChevronUp, Hash, MessageSquare } from "lucide-react";
 import { useChat } from "@/hooks/useChat";
+import { cn } from "@/lib/utils";
+
+// Simple UI components to avoid external dependencies
+const Button = ({ 
+  children, 
+  className = '', 
+  onClick, 
+  disabled = false, 
+  type = 'button',
+  variant = 'default',
+  size = 'default',
+  ...props 
+}: any) => {
+  return (
+    <button
+      type={type}
+      className={cn(
+        "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+        "disabled:opacity-50 disabled:pointer-events-none",
+        variant === "ghost" && "hover:bg-slate-100 dark:hover:bg-slate-800",
+        variant === "default" && "bg-blue-500 text-white hover:bg-blue-600",
+        size === "icon" && "h-10 w-10",
+        className
+      )}
+      onClick={onClick}
+      disabled={disabled}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+};
+
+const Input = ({ 
+  className = '', 
+  value, 
+  onChange, 
+  placeholder = '', 
+  disabled = false,
+  ...props 
+}: any) => {
+  return (
+    <input
+      className={cn(
+        "flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white",
+        "file:border-0 file:bg-transparent file:text-sm file:font-medium",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        "dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950 dark:focus-visible:ring-slate-800",
+        className
+      )}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      disabled={disabled}
+      {...props}
+    />
+  );
+};
+
+const Avatar = ({ className, ...props }: any) => (
+  <div className={cn("relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full", className)} {...props} />
+);
+
+const AvatarImage = ({ src, alt, ...props }: any) => (
+  <img src={src} alt={alt} className="aspect-square h-full w-full" {...props} />
+);
+
+const AvatarFallback = ({ children, ...props }: any) => (
+  <div
+    className="flex h-full w-full items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700"
+    {...props}
+  >
+    {children}
+  </div>
+);
+
+// Simple inView hook fallback
+const useInView = () => {
+  const [ref, setRef] = useState<HTMLElement | null>(null);
+  const [inView, setInView] = useState(false);
+  
+  useEffect(() => {
+    if (!ref) return;
+    
+    const observer = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { threshold: 0.1 }
+    );
+    
+    observer.observe(ref);
+    return () => observer.disconnect();
+  }, [ref]);
+  
+  return [setRef, inView];
+};
+
+// Simple fallback for Avatar component
+const AvatarComponent = ({ className, ...props }: any) => (
+  <div className={cn("relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full", className)} {...props} />
+);
+
+const AvatarImageComponent = ({ src, alt, ...props }: any) => (
+  <img src={src} alt={alt} className="aspect-square h-full w-full" {...props} />
+);
+
+const AvatarFallbackComponent = ({ children, ...props }: any) => (
+  <div
+    className="flex h-full w-full items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700"
+    {...props}
+  >
+    {children}
+  </div>
+);
+
+// Fallback for Button component
+const ButtonComponent = ({ className, variant, size, children, ...props }: any) => (
+  <button
+    className={cn(
+      "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+      "disabled:opacity-50 disabled:pointer-events-none",
+      variant === "ghost" && "hover:bg-slate-100 dark:hover:bg-slate-800",
+      size === "icon" && "h-10 w-10",
+      className
+    )}
+    {...props}
+  >
+    {children}
+  </button>
+);
 
 type Message = {
   id: string;
@@ -14,30 +146,53 @@ type Message = {
   roomId: string;
 };
 
+type GroupedMessages = {
+  date: string;
+  messages: Message[];
+};
+
 export default function ChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const roomId = searchParams.get('room') || '1'; // Default to room 1 if not specified
 
-  // Using REOWN AppKit hooks
-  const { address: appkitAddress, isConnected: appkitIsConnected } = useAppKitAccount();
-
-  // Fallback to Wagmi hooks
-  const { address: wagmiAddress, isConnected: wagmiIsConnected } = useAccount();
-
-  // Use AppKit values first, fallback to Wagmi
-  const address = appkitAddress || wagmiAddress;
-  const isConnected = appkitIsConnected || wagmiIsConnected;
+  // Use Wagmi hooks
+  const { address, isConnected } = useAccount();
 
   // Use the chat hook for message handling
-  const { messages, isSending, isLoading, error, sendMessage } = useChat(roomId);
+  const { messages = [], isSending, isLoading, error, sendMessage, fetchMessages } = useChat(roomId);
   
   const [messageInput, setMessageInput] = useState("");
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const { ref: loadMoreRef, inView } = useInView({
+    threshold: 0.1,
+  });
+
+  // Group messages by date
+  const groupedMessages = messages.reduce<GroupedMessages[]>((acc, message) => {
+    const date = new Date(message.timestamp).toDateString();
+    const existingGroup = acc.find(group => group.date === date);
+    
+    if (existingGroup) {
+      existingGroup.messages.push(message);
+    } else {
+      acc.push({
+        date,
+        messages: [message]
+      });
+    }
+    
+    return acc;
+  }, []);
 
   // ENS resolution for current user
   const { data: ensName } = useEnsName({
-    address: address as `0x${string}` | undefined,
+    address: address as `0x${string}`,
     chainId: mainnet.id,
   });
 
@@ -48,10 +203,57 @@ export default function ChatPage() {
     }
   }, [isConnected, router]);
 
-  // Auto-scroll to bottom on new messages
+  // Handle scroll events
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+    
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const isNearBottom = scrollHeight - (scrollTop + clientHeight) < 100;
+    setIsAtBottom(isNearBottom);
+  }, []);
+
+  // Auto-scroll to bottom on new messages when at bottom
   useEffect(() => {
+    if (isAtBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isAtBottom]);
+
+  // Load more messages when scrolling to top
+  useEffect(() => {
+    if (inView && !isLoading && !isLoadingMore && hasMore) {
+      loadMoreMessages();
+    }
+  }, [inView, isLoading, isLoadingMore, hasMore]);
+
+  // Load more messages
+  const loadMoreMessages = async () => {
+    if (isLoadingMore || !hasMore) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const newPage = page + 1;
+      const newMessages = await fetchMessages(newPage);
+      
+      if (newMessages.length < 20) { // Assuming 20 is the page size
+        setHasMore(false);
+      }
+      
+      if (newMessages.length > 0) {
+        setPage(newPage);
+      }
+    } catch (error) {
+      console.error('Failed to load more messages:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Scroll to bottom handler
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    setIsAtBottom(true);
+  }, []);
 
   // Handle sending a new message
   const handleSendMessage = useCallback(async (e: React.FormEvent) => {
@@ -67,37 +269,64 @@ export default function ChatPage() {
   }, [messageInput, isConnected, isSending, sendMessage]);
 
   // Format message timestamp
-  const formatTimestamp = (timestamp: number) => {
+  const formatMessageTime = (timestamp: number) => {
     try {
-      const date = new Date(timestamp);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMins / 60);
-      const diffDays = Math.floor(diffHours / 24);
-
-      if (diffMins < 1) return 'just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffDays < 7) return `${diffDays}d ago`;
-      return date.toLocaleDateString();
+      return format(new Date(timestamp), 'h:mm a');
     } catch {
       return '';
     }
   };
 
-  // Truncate long messages
-  const truncateMessage = (content: string, maxLength: number = 200) => {
-    if (content.length <= maxLength) return content;
-    return `${content.substring(0, maxLength)}...`;
+  // Format date header
+  const formatDateHeader = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      if (date.toDateString() === today.toDateString()) {
+        return 'Today';
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        return 'Yesterday';
+      } else {
+        return format(date, 'MMMM d, yyyy');
+      }
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Check if messages are from the same sender and close in time
+  const isSameSender = (current: Message, next: Message | undefined) => {
+    if (!next) return false;
+    const currentSender = typeof current.sender === 'string' ? current.sender : current.sender.id;
+    const nextSender = typeof next.sender === 'string' ? next.sender : next.sender.id;
+    return (
+      currentSender.toLowerCase() === nextSender.toLowerCase() &&
+      next.timestamp - current.timestamp < 5 * 60 * 1000 // 5 minutes
+    );
+  };
+
+  // Format sender address
+  const formatSender = (addr: string | undefined) => {
+    if (!addr) return '';
+    if (address && typeof addr === 'string' && addr.toLowerCase() === address.toLowerCase()) return 'You';
+    if (typeof addr !== 'string') return 'Unknown';
+    return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
   };
 
   const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
     setMounted(true);
+    // Add scroll event listener
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
   }, []);
-
 
   if (!mounted) {
     return (
@@ -113,65 +342,79 @@ export default function ChatPage() {
         <div className="text-center">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Wallet Not Connected</h2>
           <p className="text-slate-600 dark:text-slate-300 mb-6">Please connect your wallet to start chatting</p>
-          <button
+          <Button
             onClick={() => router.push('/')}
             className="px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
           >
             Connect Wallet
-          </button>
+          </Button>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-slate-800 shadow-sm px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Link
-            href="/"
-            className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-          </Link>
+// Handle scroll events
+const handleScroll = useCallback(() => {
+  if (!messagesContainerRef.current) return;
+  
+  const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+  const isNearBottom = scrollHeight - (scrollTop + clientHeight) < 100;
+  setIsAtBottom(isNearBottom);
+}, []);
           <div className="flex items-center space-x-2">
-            <Hash className="w-5 h-5 text-blue-500" />
-            <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
-              Room #{roomId}
-            </h1>
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50">
+              <Hash className="w-5 h-5 text-blue-500" />
+            </div>
+            <div>
+              <h1 className="font-semibold text-slate-900 dark:text-white">
+                Room #{roomId}
+              </h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {messages.length} messages
+              </p>
+            </div>
           </div>
         </div>
-        <div className="flex items-center space-x-4">
-          <div className="hidden md:flex items-center space-x-2 text-sm text-slate-500 dark:text-slate-400">
-            <span>Connected as:</span>
-            <span className="font-medium text-slate-900 dark:text-slate-200">
-              {ensName || (address ? truncateAddress(address) : '')}
-            </span>
+        <div className="flex items-center space-x-3">
+          <div className="hidden md:flex items-center space-x-2 text-sm">
+            <span className="text-slate-500 dark:text-slate-400">Connected as:</span>
+            <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-700 px-3 py-1 rounded-full">
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <span className="font-medium text-slate-900 dark:text-slate-200">
+                {ensName || (address ? formatSender(address) : '')}
+              </span>
+            </div>
           </div>
-          <Link
-            href="/profile"
-            className="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
-            aria-label="Profile"
+          <ButtonComponent
+            variant="ghost"
+            size="icon"
+            className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            onClick={scrollToBottom}
+            disabled={isAtBottom}
+            aria-label="Scroll to bottom"
           >
-            <User className="w-5 h-5" />
-          </Link>
+            <ChevronDown className={cn(
+              "w-5 h-5 transition-transform",
+              isAtBottom ? "opacity-50" : "animate-bounce"
+            )} />
+          </Button>
         </div>
       </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-6"
+      >
         {isLoading ? (
-          <div className="flex justify-center items-center h-32">
+          <div className="flex flex-col items-center justify-center h-full space-y-4">
             <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <p className="text-slate-500 dark:text-slate-400">Loading messages...</p>
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-            <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-            <span className="text-red-700 dark:text-red-300">{error}</span>
+          <div className="flex items-center justify-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg mx-4">
+            <AlertCircle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0" />
+            <span className="text-sm text-red-700 dark:text-red-300">{error}</span>
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -182,60 +425,158 @@ export default function ChatPage() {
             <p className="text-slate-500 dark:text-slate-400">Be the first to send a message!</p>
           </div>
         ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${
-                message.sender.toLowerCase() === address?.toLowerCase() ? "justify-end" : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-[80%] md:max-w-[60%] rounded-2xl px-4 py-2 ${
-                  message.sender.toLowerCase() === address?.toLowerCase()
-                    ? "bg-blue-500 text-white rounded-br-none"
-                    : "bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-bl-none border border-slate-200 dark:border-slate-700"
-                }`}
-              >
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="text-xs font-medium">
-                    {message.sender.toLowerCase() === address?.toLowerCase()
-                      ? "You"
-                      : truncateAddress(message.sender)}
-                  </span>
-                  <span className="text-xs opacity-70">
-                    {formatTimestamp(message.timestamp)}
-                  </span>
-                </div>
-                <p className="whitespace-pre-wrap break-words">{truncateMessage(message.content)}</p>
+          <>
+            {!hasMore && !isLoadingMore && (
+              <div className="text-center">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Beginning of conversation
+                </span>
               </div>
-            </div>
-          ))
+            )}
+            
+            {isLoadingMore && (
+              <div className="flex justify-center py-2">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+              </div>
+            )}
+            
+            <div ref={loadMoreRef} className="h-1" />
+            
+            {groupedMessages.map((group, groupIndex) => (
+              <div key={group.date} className="space-y-4">
+                <div className="sticky top-2 z-10">
+                  <div className="mx-auto w-fit px-3 py-1 bg-white dark:bg-slate-800 text-xs font-medium text-slate-500 dark:text-slate-400 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm">
+                    {formatDateHeader(group.date)}
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  {group.messages.map((message, index) => {
+                    const isUser = message.sender.toLowerCase() === address?.toLowerCase();
+                    const showAvatar = !isUser && !isSameSender(message, group.messages[index + 1]);
+                    const showTime = !isSameSender(message, group.messages[index + 1]);
+                    
+                    return (
+                      <div
+                        key={message.id}
+                        className={cn(
+                          "flex items-start group",
+                          isUser ? "justify-end" : "justify-start"
+                        )}
+                      >
+                        {!isUser && (
+                          <div className="flex-shrink-0 mr-2 mt-1">
+                            {showAvatar ? (
+                              <AvatarComponent className="w-8 h-8">
+                                <AvatarImageComponent src={`https://api.dicebear.com/7.x/identicon/svg?seed=${message.sender}`} />
+                                <AvatarFallbackComponent>
+                                  {typeof message.sender === 'string' ? message.sender.substring(0, 2).toUpperCase() : '??'}
+                                </AvatarFallbackComponent>
+                              </AvatarComponent>
+                            ) : (
+                              <div className="w-8" />
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className={cn(
+                          "max-w-[85%] md:max-w-[70%] space-y-1",
+                          isUser && "flex flex-col items-end"
+                        )}>
+                          <div
+                            className={cn(
+                              "px-4 py-2 rounded-2xl",
+                              isUser
+                                ? "bg-blue-500 text-white rounded-br-none"
+                                : "bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-bl-none border border-slate-200 dark:border-slate-700"
+                            )}
+                          >
+                            {!isUser && showAvatar && (
+                              <div className="flex items-center space-x-2 mb-1">
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                  {formatSender(message.sender)}
+                                </span>
+                              </div>
+                            )}
+                            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                          </div>
+                          
+                          {showTime && (
+                            <div className="flex items-center space-x-2 px-1">
+                              <span className="text-xs text-slate-500 dark:text-slate-400">
+                                {formatMessageTime(message.timestamp)}
+                              </span>
+                              {isUser && (
+                                <span className={cn(
+                                  "text-xs",
+                                  isUser ? "text-blue-400" : "text-slate-400"
+                                )}>
+                                  {isUser ? 'Sent' : 'Delivered'}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {isUser && (
+                          <div className="flex-shrink-0 ml-2 mt-1">
+                            <AvatarComponent className="w-8 h-8">
+                              <AvatarImageComponent src={`https://api.dicebear.com/7.x/identicon/svg?seed=${address || 'user'}`} />
+                              <AvatarFallbackComponent>You</AvatarFallbackComponent>
+                            </AvatarComponent>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            
+            <div ref={messagesEndRef} />
+          </>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Message Input */}
       <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
         {error && (
-          <div className="flex items-center justify-center p-2 mb-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-            <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
+          <div className="flex items-center justify-center p-2 mb-2 bg-red-50 dark:bg-red-900/20 rounded-lg mx-4">
+            <AlertCircle className="w-4 h-4 text-red-500 mr-2 flex-shrink-0" />
             <span className="text-sm text-red-700 dark:text-red-300">{error}</span>
           </div>
         )}
-        <form onSubmit={handleSendMessage} className="flex space-x-2">
-          <input
-            type="text"
-            value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message..."
-            className="flex-1 px-4 py-2 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            disabled={!isConnected || isSending}
-          />
-          <button
+        
+        <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
+          <div className="flex-1 relative">
+            <Input
+              type="text"
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage(e);
+                }
+              }}
+              placeholder="Type your message..."
+              className="w-full pr-12 resize-none"
+              disabled={!isConnected || isSending}
+              multiline
+              rows={1}
+            />
+            <div className="absolute right-3 bottom-2.5 flex items-center space-x-1">
+              <span className={`text-xs ${messageInput.length > 500 ? 'text-red-500' : 'text-slate-400'}`}>
+                {messageInput.length}/500
+              </span>
+            </div>
+          </div>
+          
+          <ButtonComponent
             type="submit"
-            disabled={!messageInput.trim() || !isConnected || isSending}
-            className="p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            size="icon"
+            disabled={!messageInput.trim() || !isConnected || isSending || messageInput.length > 500}
+            className="flex-shrink-0 h-11 w-11 rounded-full bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             aria-label="Send message"
           >
             {isSending ? (
@@ -243,11 +584,25 @@ export default function ChatPage() {
             ) : (
               <Send className="w-5 h-5" />
             )}
-          </button>
+          </Button>
         </form>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center">
-          Messages are stored on the blockchain
-        </p>
+        
+        <div className="mt-2 flex items-center justify-between px-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {isConnected ? (
+              <span className="flex items-center">
+                <span className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></span>
+                Connected as {ensName || formatSender(address || '')}
+              </span>
+            ) : (
+              'Connect your wallet to send messages'
+            )}
+          </p>
+          <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
+            <Clock className="w-3.5 h-3.5 mr-1" />
+            <span>Messages are stored on the blockchain</span>
+          </div>
+        </div>
       </div>
     </div>
   );
