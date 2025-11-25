@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
+// @ts-ignore - next-pwa types are not fully compatible with Next.js 16
 import withPWA from "next-pwa";
+// @ts-ignore - sentry types might have conflicts
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
@@ -51,6 +53,13 @@ const withPWAConfigured = withPWA({
 });
 
 // Type assertion for the final export
-export default withSentryConfig(withPWAConfigured(nextConfig as unknown as NextConfig), {
+export default withSentryConfig(withPWAConfigured({
+  ...nextConfig,
+  // Add any specific overrides needed for PWA
+  pwa: {
+    dest: 'public',
+    disable: process.env.NODE_ENV === 'development',
+  },
+} as NextConfig), {
   silent: true,
 });
