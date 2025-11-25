@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAppKitAccount, useAppKit, useWalletInfo, useDisconnect } from "@reown/appkit/react";
 import { useAccount, useDisconnect as useWagmiDisconnect } from "wagmi";
 import { base, celo, baseSepolia, celoSepolia } from "@reown/appkit/networks";
@@ -8,7 +8,9 @@ import { Wallet, ChevronDown, LogOut, Copy, Check, Loader2, WifiOff } from "luci
 import { toast } from "sonner";
 import Image from "next/image";
 import { useNameService } from "@/hooks/useNameService";
-import { truncateAddress } from "@/lib/utils";
+
+// Utility function to truncate addresses
+const truncateAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
 // Environment detection
 const isMainnet = process.env.NEXT_PUBLIC_NETWORK === 'mainnet';
@@ -19,7 +21,7 @@ const SUPPORTED_NETWORKS = isMainnet
   : [baseSepolia, celoSepolia];
 
 // Wallet connection status type
-type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'wrong_network';
+// Removed unused ConnectionStatus type as it's not being used
 
 /**
  * WalletConnect Component
@@ -32,9 +34,9 @@ export default function WalletConnect() {
   // State
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [displayName, setDisplayName] = useState<string>('');
   const [avatar, setAvatar] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
 
   // AppKit hooks
   const { address, isConnected } = useAppKitAccount();
@@ -81,62 +83,27 @@ export default function WalletConnect() {
     updateDisplayInfo();
   }, [effectiveAddress, lookupAddress]);
   
-  // Get wallet icon
-  const getWalletIcon = () => {
-    if (walletInfo?.icon) {
-      return (
-        <Image
-          src={walletInfo.icon}
-          alt={walletInfo.name || 'Wallet'}
-          width={20}
-          height={20}
-          className="w-5 h-5 rounded-full"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = 'none';
-          }}
-        />
-      );
-    }
-    
-    if (connector?.icon) {
-      return (
-        <Image
-          src={connector.icon}
-          alt={connector.name || 'Wallet'}
-          width={20}
-          height={20}
-          className="w-5 h-5 rounded-full"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = 'none';
-          }}
-        />
-      );
-    }
-    
-    return <Wallet className="w-5 h-5" />;
-  };
+  // Wallet names mapping
+  const walletNames = useMemo(() => ({
+    'injected': 'Browser Wallet',
+    'metaMask': 'MetaMask',
+    'walletConnect': 'WalletConnect',
+    'coinbaseWallet': 'Coinbase Wallet',
+    'safe': 'Safe',
+    'ledger': 'Ledger',
+    'tally': 'Tally',
+    'rainbow': 'Rainbow',
+    'trust': 'Trust',
+    'imToken': 'imToken',
+    'tokenPocket': 'TokenPocket',
+    'mathWallet': 'MathWallet',
+    'tokenary': 'Tokenary',
+    'frame': 'Frame',
+    'walletConnectV2': 'WalletConnect v2',
+    'reown': 'Reown Wallet'
+  }), []);
 
-  // Update display name when address changes
-  useEffect(() => {
-    const updateDisplayInfo = async () => {
-      if (address) {
-        const { name, avatar } = await lookupAddress(address);
-        setDisplayName(name || truncateAddress(address));
-        setAvatar(avatar);
-      } else {
-        setDisplayName(null);
-        setAvatar(null);
-      }
-    };
-    
-    updateDisplayInfo();
-  }, [address, lookupAddress]);
-
-  useEffect(() => setMounted(true), []);
-
-  const truncateAddress = (addr: string | undefined) =>
-    addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "";
-
+  // Get wallet icon with URL validation
   const getWalletIcon = () => {
     const sanitizeImageUrl = (url: string) => {
       if (!url) return null;
@@ -156,15 +123,16 @@ export default function WalletConnect() {
       if (sanitizedUrl) {
         return (
           <Image
-            src={sanitizedUrl}
-            alt={walletInfo.name || "Wallet"}
+            src={walletInfo?.icon || `/wallets/${walletInfo?.name?.toLowerCase()}.svg`}
+            alt={walletInfo?.name || 'Wallet'}
             width={20}
             height={20}
-            className="w-5 h-5 rounded-full"
+            className="w-5 h-5"
             onError={(e) => {
-              (e.currentTarget.style.display = "none");
+              const target = e.target as HTMLImageElement;
+              target.onerror = null;
+              target.src = '/wallets/default.svg';
             }}
-            unoptimized
           />
         );
       }
@@ -181,7 +149,7 @@ export default function WalletConnect() {
             height={20}
             className="w-5 h-5 rounded-full"
             onError={(e) => {
-              (e.currentTarget.style.display = "none");
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
             }}
             unoptimized
           />
@@ -192,118 +160,13 @@ export default function WalletConnect() {
     return <Wallet className="w-5 h-5" />;
   };
 
-  const getWalletName = () => walletInfo?.name || connector?.name || "Connected Wallet";
 
   // Handle wallet connection
   const handleConnect = async () => {
     try {
       setIsConnecting(true);
       await open();
-      // Close the dropdown after successful connection
       setIsDropdownOpen(false);
-    } catch (error: unknown) {
-      console.error("Connection error:", error instanceof Error ? error.message : String(error));
-      toast.error('Failed to connect wallet');
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
-  // Optional disconnect loading
-  const handleDisconnect = async () => {
-    setIsDropdownOpen(false);
-    setIsDisconnecting(true);
-    try {
-      if (appkitIsConnected) {
-        await appkitDisconnect();
-      }
-      if (wagmiIsConnected) {
-        await wagmiDisconnect();
-      }
-    } catch (error: unknown) {
-      console.error("Disconnect error:", error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsDisconnecting(false);
-    }
-  };
-
-  const handleCopyAddress = async () => {
-    if (address) {
-      try {
-        await navigator.clipboard.writeText(address);
-        setCopied(true);
-        toast.success('Address copied to clipboard');
-        setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        console.error('Failed to copy address:', err);
-        toast.error('Failed to copy address');
-      }
-    }
-  };
-
-  // Example function to create a new chat room
-  const handleCreateRoom = async () => {
-    if (!address) return;
-    
-    try {
-      const roomName = `Room ${Math.floor(Math.random() * 1000)}`;
-      const txHash = await createRoom(roomName, false);
-      
-      if (txHash) {
-        setLastTxHash(txHash);
-        toast.success(`Creating room: ${roomName}`);
-      }
-    } catch (err) {
-      console.error('Failed to create room:', err);
-      toast.error('Failed to create room');
-    }
-  };
-
-  // Handle transaction status changes
-  useEffect(() => {
-    if (isPending) {
-      setShowTxStatus(true);
-      toast.loading('Transaction pending...');
-    }
-
-    if (isConfirmed) {
-      setShowTxStatus(false);
-      toast.success('Transaction confirmed!');
-    }
-
-    if (isContractError && contractError) {
-      setShowTxStatus(false);
-      toast.error(`Transaction failed: ${contractError}`);
-    }
-  }, [isPending, isConfirmed, isContractError, contractError]);
-
-  // Handle click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      const dropdown = document.querySelector('[data-wallet-dropdown]');
-      
-      // Check if click is outside the dropdown and the dropdown is open
-      if (dropdown && !dropdown.contains(target) && isDropdownOpen) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    // Use capture phase to catch events before they bubble up
-    document.addEventListener('mousedown', handleClickOutside, true);
-    
-    // Cleanup function to remove the event listener
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside, true);
-    };
-  }, [isDropdownOpen]);
-
-  // Handle wallet connection
-  const handleConnect = async () => {
-    try {
-      setIsConnecting(true);
-      await open();
-      // No need for success toast as AppKit handles its own UI
     } catch (error) {
       console.error('Connection error:', error);
       toast.error('Failed to connect wallet');
@@ -315,8 +178,7 @@ export default function WalletConnect() {
   // Handle network switching
   const handleSwitchNetwork = async () => {
     try {
-      await open('network');
-      // AppKit will handle the network switching UI
+      await open({ view: 'Networks' });
     } catch (error) {
       console.error('Network switch error:', error);
       toast.error('Failed to switch network');
@@ -324,20 +186,34 @@ export default function WalletConnect() {
   };
 
   // Handle disconnect
-  const handleDisconnect = async () => {
+  const handleDisconnect = useCallback(async () => {
     try {
+      setIsConnecting(true);
+      
+      // Try to disconnect from AppKit first
       if (isConnected) {
         await appkitDisconnect();
-      } else if (wagmiIsConnected) {
-        await wagmiDisconnect();
       }
-      toast.success('Wallet disconnected');
+      
+      // Then try to disconnect from Wagmi
+      if (wagmiIsConnected) {
+        wagmiDisconnect();
+      }
+      
+      // Reset local state
       setIsDropdownOpen(false);
+      setCopied(false);
+      setDisplayName('');
+      setAvatar(null);
+      
+      toast.success('Wallet disconnected');
     } catch (error) {
-      console.error('Disconnect error:', error);
+      console.error('Error disconnecting wallet:', error);
       toast.error('Failed to disconnect wallet');
+    } finally {
+      setIsConnecting(false);
     }
-  };
+  }, [isConnected, wagmiIsConnected, appkitDisconnect, wagmiDisconnect]);
 
   // Handle address copy
   const handleCopyAddress = async () => {
@@ -356,11 +232,13 @@ export default function WalletConnect() {
 
   // Handle click outside dropdown
   useEffect(() => {
+    if (!isDropdownOpen) return;
+    
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
       const dropdown = document.querySelector('[data-wallet-dropdown]');
       
-      if (dropdown && !dropdown.contains(target) && isDropdownOpen) {
+      if (dropdown && !dropdown.contains(target)) {
         setIsDropdownOpen(false);
       }
     };
@@ -418,14 +296,18 @@ export default function WalletConnect() {
           {isWrongNetwork ? 'Wrong Network' : displayName}
         </span>
         {avatar ? (
-          <img 
-            src={avatar} 
-            alt="Profile" 
-            className="w-5 h-5 rounded-full ml-2"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = 'none';
-            }}
-          />
+          <div className="w-5 h-5 rounded-full ml-2 relative">
+            <Image 
+              src={avatar} 
+              alt="Profile" 
+              fill
+              className="rounded-full object-cover"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+              unoptimized
+            />
+          </div>
         ) : (
           <div className="flex items-center ml-2">
             {getWalletIcon()}
@@ -472,11 +354,18 @@ export default function WalletConnect() {
           <div className="p-4 border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-3">
               {avatar ? (
-                <img 
-                  src={avatar} 
-                  alt="" 
-                  className="w-10 h-10 rounded-full"
-                />
+                <div className="w-10 h-10 rounded-full relative">
+                  <Image 
+                    src={avatar} 
+                    alt="Profile" 
+                    fill
+                    className="rounded-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    }}
+                    unoptimized
+                  />
+                </div>
               ) : (
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium text-sm">
                   {effectiveAddress?.slice(2, 4).toUpperCase()}
@@ -549,11 +438,7 @@ export default function WalletConnect() {
               <LogOut className="w-4 h-4" />
               Disconnect Wallet
             </button>
-                ) : (
-                  'Create Chat Room'
-                )}
-              </button>
-            </div>
+          </div>
 
             {/* Account Actions */}
             <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1">
@@ -597,14 +482,14 @@ export default function WalletConnect() {
             </a>
             <button
               onClick={handleDisconnect}
-              disabled={isDisconnecting}
+              disabled={isConnecting}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors mt-1 ${
-                isDisconnecting
+                isConnecting
                   ? "cursor-not-allowed opacity-70 bg-red-100 dark:bg-red-900/20 text-red-500"
                   : "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
               }`}
             >
-              {isDisconnecting ? (
+              {isConnecting ? (
                 <>
                   <svg
                     className="animate-spin w-4 h-4 text-red-500"
