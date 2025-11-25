@@ -1,6 +1,17 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { websocket } from '@/lib/websocket';
 import { Message as BaseMessage } from '@/types';
+import { 
+  EncryptedMessage, 
+  decryptMessage, 
+  publicKeyFromBase64,
+  encryptMessage
+} from '@/lib/encryption';
+import { 
+  EncryptedMessage, 
+  decryptMessage, 
+  publicKeyFromBase64 
+} from '@/lib/encryption';
 
 export type MessageStatus =
   | 'sending'
@@ -13,6 +24,8 @@ export interface Message extends BaseMessage {
   status: MessageStatus;
   tempId?: string; // For optimistic updates
   error?: string; // Error message if sending failed
+  isEncrypted?: boolean; // Whether the message is encrypted
+  decryptionError?: boolean; // Whether decryption failed
 }
 
 export type MessageHandler = (message: Message) => void;
@@ -30,6 +43,10 @@ interface UseRealtimeMessagesOptions {
   onError?: (error: Error) => void;
   enableCaching?: boolean;
   cacheExpiry?: number; // in milliseconds
+  encryptionKeys?: {
+    privateKey: Uint8Array; // Current user's private key
+    getPublicKey: (userId: string) => Promise<Uint8Array>; // Function to get recipient's public key
+  };
 }
 
 export function useRealtimeMessages({
@@ -39,6 +56,7 @@ export function useRealtimeMessages({
   onError,
   enableCaching = true,
   cacheExpiry = 1000 * 60 * 30, // 30 minutes
+  encryptionKeys,
 }: UseRealtimeMessagesOptions) {
   // Message cache state
   const [messageCache, setMessageCache] = useState<MessageCache>({});
@@ -148,12 +166,35 @@ export function useRealtimeMessages({
   useEffect(() => {
     if (!onNewMessage) return;
 
-    const handleNewMessage = (message: Message) => {
+    const handleNewMessage = async (message: Message & { encryptedData?: EncryptedMessage }) => {
       // Only process messages for the current room
       if (message.roomId === roomId) {
+        let decryptedContent = message.content;
+        let decryptionError = false;
+        let isEncrypted = false;
+
+        // Handle encrypted messages
+        if (message.encryptedData && encryptionKeys?.privateKey) {
+          try {
+            isEncrypted = true;
+            const senderPublicKey = publicKeyFromBase64(message.encryptedData.publicKey);
+            decryptedContent = await decryptMessage(
+              message.encryptedData,
+              encryptionKeys.privateKey,
+              senderPublicKey
+            );
+          } catch (error) {
+            console.error('Failed to decrypt message:', error);
+            decryptionError = true;
+          }
+        }
+
         const messageWithStatus: Message = {
           ...message,
+          content: decryptedContent,
           status: 'delivered', // Messages from server are considered delivered
+          isEncrypted,
+          decryptionError,
         };
 
         if (enableCaching) {
@@ -203,26 +244,51 @@ export function useRealtimeMessages({
         throw new Error('No room selected');
       }
 
-      // Create a temporary ID for optimistic update
+      // Create a temporary message for optimistic updates
       const tempId = `temp-${Date.now()}`;
       const tempMessage: Message = {
-        id: '',
+        id: tempId,
         tempId,
-        sender: '', // Will be set by the server
         content,
-        timestamp: Date.now(),
         roomId,
+        senderId: 'current-user', // This should be replaced with actual user ID
+        timestamp: Date.now(),
         status: 'sending',
+        isEncrypted: !!encryptionKeys,
       };
 
-      // Add to cache immediately for optimistic UI
+      // Add to cache immediately for optimistic UI update
       if (enableCaching) {
         addMessageToCache(tempMessage);
       }
 
       try {
+        let messageToSend: any = { roomId, content };
+        
+        // Encrypt the message if encryption is enabled
+        if (encryptionKeys) {
+          try {
+            // Get the recipient's public key
+            const recipientPublicKey = await encryptionKeys.getPublicKey(roomId);
+            const encrypted = await encryptMessage(
+              content,
+              recipientPublicKey,
+              encryptionKeys.privateKey
+            );
+            messageToSend = {
+              ...messageToSend,
+              content: '🔒 [Encrypted message]',
+              encryptedData: encrypted
+            };
+            tempMessage.isEncrypted = true;
+          } catch (error) {
+            console.error('Encryption failed:', error);
+            throw new Error('Failed to encrypt message');
+          }
+        }
+
         // Send message via WebSocket
-        const success = await websocket.send('message', { roomId, content });
+        const success = await websocket.send('message', messageToSend);
 
         if (!success) {
           throw new Error('Failed to send message');
