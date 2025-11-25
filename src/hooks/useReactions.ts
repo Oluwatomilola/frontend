@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAccount } from 'wagmi';
-import { Reaction, Message } from '@/types/message';
+import { Message } from '@/types/message';
 
 export function useReactions() {
   const { address } = useAccount();

@@ -1,23 +1,18 @@
 "use client";
 
 import { useAppKitAccount } from "@reown/appkit/react";
-import { useAccount, useEnsName } from "wagmi";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Hash, User, Loader2, AlertCircle } from "lucide-react";
-import { mainnet } from "wagmi/chains";
-import { formatDistanceToNow } from "date-fns";
+import { Send, User, Loader2, AlertCircle } from "lucide-react";
 import { useChat } from "@/hooks/useChat";
-import { truncateAddress } from "@/lib/utils";
 
-interface Message {
+type Message = {
   id: string;
   content: string;
   sender: string;
   timestamp: number;
   roomId: string;
-}
+};
 
 export default function ChatPage() {
   const router = useRouter();
@@ -39,7 +34,6 @@ export default function ChatPage() {
   
   const [messageInput, setMessageInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
 
   // ENS resolution for current user
   const { data: ensName } = useEnsName({
@@ -47,16 +41,12 @@ export default function ChatPage() {
     chainId: mainnet.id,
   });
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   // Wallet gate - redirect if not connected
   useEffect(() => {
-    if (mounted && !isConnected) {
+    if (!isConnected) {
       router.push("/");
     }
-  }, [mounted, isConnected, router]);
+  }, [isConnected, router]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -79,7 +69,18 @@ export default function ChatPage() {
   // Format message timestamp
   const formatTimestamp = (timestamp: number) => {
     try {
-      return formatDistanceToNow(new Date(timestamp), { addSuffix: true });
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffMins < 1) return 'just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString();
     } catch {
       return '';
     }
@@ -91,64 +92,12 @@ export default function ChatPage() {
     return `${content.substring(0, maxLength)}...`;
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!messageInput.trim() || !address) return;
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-    setIsLoading(true);
-
-    // Simulate sending message
-    const newMessage: Message = {
-      id: messages.length + 1,
-      content: messageInput,
-      sender: address as string,
-      ensName: ensName || undefined,
-      timestamp: new Date(),
-      txHash: `0x${Math.random().toString(16).substring(2, 66)}`,
-    };
-
-    setTimeout(() => {
-      setMessages((prev) => [...prev, newMessage]);
-      setMessageInput("");
-      setIsLoading(false);
-    }, 1000);
-  };
-
-  const truncateAddress = (addr: string) =>
-    `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-
-  const formatTimestamp = (date: Date) => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  };
-
-  // Pagination
-  const totalPages = Math.ceil(messages.length / messagesPerPage);
-  const paginatedMessages = messages.slice(
-    (currentPage - 1) * messagesPerPage,
-    currentPage * messagesPerPage
-  );
-
-  const handlePreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
 
   if (!mounted) {
     return (
