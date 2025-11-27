@@ -11,10 +11,7 @@ type RoomFilter = {
   minMembers: number | null;
 };
 
-type RoomSearchProps = {
-  onSearch: (filters: RoomFilter) => void;
-  className?: string;
-};
+
 
 /**
  * RoomSearch component

@@ -31,17 +31,44 @@ const cleanCache = () => {
 /**
  * useENS hook
  *
- * A hook that provides ENS resolution functionality.
- * It allows resolving ENS names to addresses and vice versa,
- * and getting ENS avatar information.
+ * A comprehensive hook for Ethereum Name Service (ENS) resolution with caching support.
+ * Provides functionality to resolve ENS names to addresses, lookup addresses to ENS names,
+ * get ENS avatars, and fetch complete ENS data with intelligent caching.
  *
- * @returns {Object} An object with functions to resolve ENS names, lookup addresses, get ENS avatar, and get ENS data.
- * @property {function} resolveName - A function to resolve an ENS name to an address.
- * @property {function} lookupAddress - A function to lookup an address to an ENS name.
- * @property {function} getAvatar - A function to get an ENS avatar.
- * @property {function} getENSData - A function to get all ENS data for an address.
- * @property {boolean} isLoading - Whether the ENS data is loading.
- * @property {Error | null} error - The error object if the ENS data fails to load.
+ * Features:
+ * - Bidirectional ENS resolution (name ↔ address)
+ * - Avatar resolution for both names and addresses
+ * - Intelligent caching with 5-minute TTL
+ * - Automatic cache cleanup and management
+ * - Loading states and error handling
+ * - Provider-based resolution using ethers.js
+ *
+ * @example
+ * ```tsx
+ * // Basic usage
+ * const { resolveName, lookupAddress, getAvatar, isLoading, error } = useENS();
+ *
+ * // Resolve ENS name to address
+ * const address = await resolveName('vitalik.eth'); // '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'
+ *
+ * // Lookup address to ENS name
+ * const name = await lookupAddress('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'); // 'vitalik.eth'
+ *
+ * // Get ENS avatar
+ * const avatar = await getAvatar('vitalik.eth'); // 'https://cloudflare-ipfs.com/ipfs/...'
+ *
+ * // Get complete ENS data
+ * const ensData = await getENSData('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045');
+ * // { name: 'vitalik.eth', address: '0x...', avatar: 'https://...' }
+ * ```
+ *
+ * @returns {useENSReturn} Object containing ENS resolution functions and state
+ * @property {ENSResolveFunction} resolveName - Resolve ENS name to Ethereum address
+ * @property {ENSLuokupFunction} lookupAddress - Lookup address to ENS name
+ * @property {ENSAvatarFunction} getAvatar - Get ENS avatar URL for name or address
+ * @property {ENSDataFunction} getENSData - Get complete ENS data bundle
+ * @property {boolean} isLoading - Loading state indicator
+ * @property {Error | null} error - Current error state
  */
 
 export function useENS() {
