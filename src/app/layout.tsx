@@ -67,17 +67,52 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  if (typeof window !== 'undefined') {
-    setupGlobalErrorHandlers();
-  }
+// This is a client component that will handle the language and direction
+'use client';
+
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
+
+function RootLayoutInner({ children }: { children: React.ReactNode }) {
+  const { i18n } = useTranslation();
+  const [dir, setDir] = useState<'ltr' | 'rtl'>('ltr');
+  const [lang, setLang] = useState('en');
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setupGlobalErrorHandlers();
+      
+      // Set initial language from localStorage or browser language
+      const savedLang = localStorage.getItem('i18nextLng') || navigator.language.split('-')[0];
+      const initialLang = ['en', 'es', 'fr'].includes(savedLang) ? savedLang : 'en';
+      
+      // Set initial direction based on language
+      const initialDir = initialLang === 'ar' ? 'rtl' : 'ltr';
+      
+      setLang(initialLang);
+      setDir(initialDir);
+      document.documentElement.lang = initialLang;
+      document.documentElement.dir = initialDir;
+    }
+  }, []);
+
+  // Update direction when language changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const currentLang = i18n.language || 'en';
+      const currentDir = currentLang === 'ar' ? 'rtl' : 'ltr';
+      
+      setLang(currentLang);
+      setDir(currentDir);
+      document.documentElement.lang = currentLang;
+      document.documentElement.dir = currentDir;
+    }
+  }, [i18n.language, pathname]);
 
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang={lang} dir={dir} className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="min-h-screen bg-background font-sans antialiased">
         <ErrorBoundary
           fallback={(error, reset) => (
@@ -111,4 +146,12 @@ export default function RootLayout({
       </body>
     </html>
   );
+}
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return <RootLayoutInner>{children}</RootLayoutInner>;
 }
