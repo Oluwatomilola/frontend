@@ -1,8 +1,33 @@
 import DOMPurify, { Config } from 'isomorphic-dompurify';
 
 /**
- * Sanitize user-provided message content to prevent XSS while allowing
- * a minimal set of safe formatting tags.
+ * Content Sanitization Library
+ * 
+ * Provides XSS prevention and content filtering for user-generated content.
+ * Uses DOMPurify with a carefully curated whitelist of safe HTML tags and attributes.
+ * 
+ * Security Features:
+ * - Prevents XSS attacks through strict tag filtering
+ * - Allows safe formatting tags (bold, italic, links, code, etc.)
+ * - Automatically secures external links with proper attributes
+ * - Enforces maximum content length limits
+ * - Removes dangerous tags (script, style, iframe, etc.)
+ * - Normalizes link attributes for security
+ * 
+ * @example
+ * ```typescript
+ * // Basic message sanitization
+ * const cleanMessage = sanitizeMessage("Hello <b>world</b>!");
+ * // Returns: "Hello <b>world</b>!"
+ *
+ * // With external links (automatically secured)
+ * const messageWithLink = sanitizeMessage('Visit <a href="https://example.com">our site</a>');
+ * // Returns: 'Visit <a href="https://example.com" rel="noopener noreferrer" target="_blank">our site</a>'
+ *
+ * // Strip all HTML tags
+ * const plainText = stripAll("Hello <b>world</b>!");
+ * // Returns: "Hello world!"
+ * ```
  */
 const config: Config = {
   ALLOWED_TAGS: [
