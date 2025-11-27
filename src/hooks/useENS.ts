@@ -195,8 +195,16 @@ export function useENS() {
     }
   }, [provider, lookupAddress]);
 
-  // Get all ENS data for an address
-  const getENSData = useCallback(async (address: string) => {
+  /**
+   * Get complete ENS data bundle for an address
+   * @param {string} address - Ethereum address
+   * @returns {Promise<ENSData | null>} Complete ENS data or null if not found
+   */
+  const getENSData = useCallback(async (address: string): Promise<{
+    name: string | null;
+    address: string | null;
+    avatar: string | null;
+  } | null> => {
     if (!provider || !ethers.isAddress(address)) return null;
     
     const cacheKey = `address:${address.toLowerCase()}`;
