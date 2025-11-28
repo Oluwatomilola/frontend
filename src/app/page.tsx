@@ -16,27 +16,38 @@ export default function Home() {
       {/* Navigation */}
       <nav
         className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-950/80 border-b border-slate-200/50 dark:border-slate-800/50"
-        role="navigation"
-        aria-label="Primary"
+        aria-label="Primary navigation"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center" aria-hidden="true">
                 <span className="text-white font-bold text-lg">A</span>
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
                 Ambience
               </span>
             </div>
-            <div className="hidden md:flex items-center space-x-8" role="menubar" aria-label="Primary navigation">
-              <a href="#features" role="menuitem" className="text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-3 py-3 rounded-md">
+            <div className="hidden md:flex items-center space-x-8" role="menubar" aria-label="Main navigation menu">
+              <a 
+                href="#features" 
+                role="menuitem"
+                className="text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-3 py-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
                 Features
               </a>
-              <a href="#how-it-works" role="menuitem" className="text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-3 py-3 rounded-md">
+              <a 
+                href="#how-it-works" 
+                role="menuitem"
+                className="text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-3 py-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
                 How It Works
               </a>
-              <Link href="/profile" role="menuitem" className="text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-3 py-3 rounded-md">
+              <Link 
+                href="/profile" 
+                role="menuitem"
+                className="text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-3 py-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
                 Profile
               </Link>
               <ThemeToggle />
@@ -50,13 +61,18 @@ export default function Home() {
                 <WalletConnect />
               </WalletErrorBoundary>
               <button
-                aria-label="Open menu"
+                type="button"
+                aria-label={mobileOpen ? "Close menu" : "Open menu"}
                 aria-expanded={mobileOpen}
                 aria-controls="mobile-menu"
+                aria-haspopup="true"
                 onClick={() => setMobileOpen((v) => !v)}
-                className="inline-flex items-center justify-center w-11 h-11 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 active:scale-95 transition"
+                className="inline-flex items-center justify-center w-11 h-11 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 active:scale-95 transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                <span className="sr-only">
+                  {mobileOpen ? "Close mobile menu" : "Open mobile menu"}
+                </span>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" aria-hidden="true">
                   {mobileOpen ? (
                     <path d="M6 18L18 6M6 6l12 12" />
                   ) : (
@@ -73,13 +89,28 @@ export default function Home() {
           {mobileOpen && (
             <div className="md:hidden py-3 border-t border-slate-200 dark:border-slate-800" id="mobile-menu" role="menu" aria-label="Mobile navigation">
               <div className="flex flex-col gap-2 py-2">
-                <a href="#features" role="menuitem" className="px-4 py-3 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <a 
+                  href="#features" 
+                  role="menuitem"
+                  className="px-4 py-3 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  onClick={() => setMobileOpen(false)}
+                >
                   Features
                 </a>
-                <a href="#how-it-works" role="menuitem" className="px-4 py-3 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <a 
+                  href="#how-it-works" 
+                  role="menuitem"
+                  className="px-4 py-3 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  onClick={() => setMobileOpen(false)}
+                >
                   How It Works
                 </a>
-                <Link href="/profile" role="menuitem" className="px-4 py-3 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <Link 
+                  href="/profile" 
+                  role="menuitem"
+                  className="px-4 py-3 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  onClick={() => setMobileOpen(false)}
+                >
                   Profile
                 </Link>
               </div>
