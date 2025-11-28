@@ -279,10 +279,10 @@ export default function Home() {
       </section>
 
       {/* How It Works Section */}
-      <section id="how-it-works" className="py-20 px-4 sm:px-6 lg:px-8">
+      <section id="how-it-works" className="py-20 px-4 sm:px-6 lg:px-8" aria-labelledby="how-it-works-heading">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl sm:text-5xl font-bold mb-4 bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+            <h2 id="how-it-works-heading" className="text-4xl sm:text-5xl font-bold mb-4 bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
               How It Works
             </h2>
             <p className="text-xl text-slate-700 dark:text-slate-300 max-w-2xl mx-auto">
@@ -290,7 +290,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <ol className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto" role="list" aria-label="Steps to get started">
             {[
               {
                 step: "01",
@@ -308,39 +308,40 @@ export default function Home() {
                 description: "All messages are permanently stored on Base blockchain. You truly own your conversations.",
               },
             ].map((step, index) => (
-              <div key={index} className="relative">
+              <li key={index} role="listitem" className="relative">
                 <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xl mb-6">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xl mb-6" aria-label={`Step ${step.step}`}>
                     {step.step}
                   </div>
                   <h3 className="text-2xl font-bold mb-4 text-slate-900 dark:text-slate-100">{step.title}</h3>
                   <p className="text-slate-700 dark:text-slate-300 leading-relaxed">{step.description}</p>
                 </div>
                 {index < 2 && (
-                  <div className="hidden md:block absolute top-8 left-full w-full h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 transform translate-x-4"></div>
+                  <div className="hidden md:block absolute top-8 left-full w-full h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 transform translate-x-4" aria-hidden="true"></div>
                 )}
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-20 px-4 sm:px-6 lg:px-8" aria-labelledby="cta-heading">
         <div className="max-w-4xl mx-auto text-center">
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-12 sm:p-16 shadow-2xl">
-            <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+            <h2 id="cta-heading" className="text-4xl sm:text-5xl font-bold text-white mb-6">
               Ready to Experience Decentralized Messaging?
             </h2>
             <p className="text-xl text-white/90 mb-10 max-w-2xl mx-auto">
               Join the future of communication. Connect your wallet and start chatting on the blockchain today.
             </p>
             <button
+              type="button"
               onClick={() => setShowComingSoon(true)}
-              className="inline-flex items-center gap-2 px-8 py-4 bg-white text-blue-600 rounded-full font-semibold text-lg hover:shadow-2xl hover:scale-105 transition-all duration-200"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-white text-blue-600 rounded-full font-semibold text-lg hover:shadow-2xl hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-600"
             >
               Launch Ambience Chat
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
             </button>
